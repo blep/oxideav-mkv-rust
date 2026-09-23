@@ -613,7 +613,16 @@ fn open_typed_impl(
         };
         if t.track_type == ids::TRACK_TYPE_AUDIO {
             params.sample_rate = Some(t.sample_rate.round() as u32);
-            params.channels = Some(t.channels as u16);
+            let mut channels = t.channels as u16;
+            // AAC: the Matroska `Channels` element is often a placeholder;
+            // the `AudioSpecificConfig` in `CodecPrivate` is authoritative
+            // (including HE-AACv2's parametric stereo).
+            if params.codec_id.as_str().starts_with("aac") {
+                if let Some(asc_channels) = crate::asc::channel_count(&params.extradata) {
+                    channels = asc_channels;
+                }
+            }
+            params.channels = Some(channels);
             params.sample_format = match (params.codec_id.as_str(), t.bit_depth) {
                 ("pcm_s16le", _) => Some(SampleFormat::S16),
                 ("pcm_s16be", _) => Some(SampleFormat::S16),
